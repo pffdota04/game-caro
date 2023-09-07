@@ -11,6 +11,9 @@ export class RoomService extends Room<RoomState> {
 
   onCreate(options: any): void | Promise<any> {
     console.log('created room', this.roomId);
+    if (options && options.isCreate) {
+      this.setPrivate(true);
+    }
     this.setState(new RoomState());
 
     this.onMessage('ready', () => {
