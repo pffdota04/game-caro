@@ -102,8 +102,11 @@ export class RoomService extends Room<RoomState> {
       }
 
       if (winGame) {
+        console.log('WINGAME');
+
         this.state.winner = sessionId;
         setTimeout(() => {
+          console.log('dissconnect ROOM!');
           this.disconnect();
         }, 3000);
         return;
