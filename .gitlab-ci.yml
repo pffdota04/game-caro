@@ -1,0 +1,8 @@
+variables:
+  project: 'game-channel-service'
+
+trigger:
+  script: curl --user $jenkinsDevToken -X POST $jenkinsDevUrl/job/$project/job/$CI_COMMIT_REF_NAME/build?delay=0sec
+  only:
+    - test
+    - stg
