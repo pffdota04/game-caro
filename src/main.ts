@@ -5,17 +5,12 @@ import { RedisDriver } from '@colyseus/redis-driver';
 import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { RoomService } from './room/room.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
   app.use(helmet());
-
-  app.useGlobalInterceptors(new TransformInterceptor());
-  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
