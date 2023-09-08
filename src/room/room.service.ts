@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Client, ClientArray, Room } from 'colyseus';
 import { Possion, RoomState } from './room.state';
 import { x } from 'joi';
+import { stat } from 'fs';
 
 @Injectable()
 export class RoomService extends Room<RoomState> {
@@ -16,10 +17,12 @@ export class RoomService extends Room<RoomState> {
     }
     this.setState(new RoomState());
 
-    this.onMessage('ready', () => {
+    this.onMessage('ready', (client) => {
+      console.log(client.sessionId, 'ready');
       this.state.ready++;
     });
     this.onMessage('action', (client, message) => this.action(client, message));
+    this.onMessage('outGame', (client, message) => this.outGame(client));
   }
 
   onJoin(
@@ -48,13 +51,28 @@ export class RoomService extends Room<RoomState> {
     console.log('player leaved', client.sessionId);
   }
 
+  outGame(client: Client) {
+    const clients = this.state.clients.toJSON();
+    console.log(Object.keys(clients));
+
+    if (Object.keys(clients)[0] == client.sessionId) {
+      this.state.winner = Object.keys(clients)[1];
+    } else this.state.winner = Object.keys(clients)[0];
+  }
+
   action(client: Client, message: any) {
     console.log(client.sessionId, 'action');
 
+    const clients = this.state.clients.toJSON();
     if (this.state.currentTurn !== client.sessionId) return;
-    this.state.clients.forEach((value, key) => {
-      if (key !== client.sessionId) this.state.currentTurn = key;
-    });
+    if (Object.keys(clients)[0] == client.sessionId) {
+      this.state.currentTurn = Object.keys(clients)[1];
+    } else this.state.currentTurn = Object.keys(clients)[0];
+
+    // if (this.state.currentTurn !== client.sessionId) return;
+    // this.state.clients.forEach((value, key) => {
+    //   if (key !== client.sessionId) this.state.currentTurn = key;
+    // });
 
     this.state.lastPossition = new Possion();
     this.state.lastPossition.x = message.x;
@@ -73,13 +91,19 @@ export class RoomService extends Room<RoomState> {
     const neighbor = this.getNeighbor(x, y);
 
     const onlyMySession = array.filter((pos) => {
+      // if (pos.sessionId == sessionId) console.log(pos.xy);
+
       return pos.sessionId == sessionId;
     });
+    let winGame = 0;
+    let w12 = 0;
+    let w3 = 0;
+    let w2 = 0;
+    let w4 = 0;
 
-    let winGame = false;
     for (let i = 0; i < Object.keys(neighbor).length; i++) {
       const way = Object.keys(neighbor)[i];
-
+      winGame = 0;
       const xy = neighbor[way].x + '' + neighbor[way].y;
 
       for (let index = 0; index < onlyMySession.length; index++) {
@@ -103,18 +127,43 @@ export class RoomService extends Room<RoomState> {
           break; // breank for onlyMySession
         }
       }
-
-      if (winGame) {
-        console.log('WINGAME');
-
-        this.state.winner = sessionId;
-        setTimeout(() => {
-          console.log('dissconnect ROOM!');
-          this.disconnect();
-        }, 3000);
-        return;
+      if (winGame !== 0) {
+        if (way == 'up' || way == 'down') {
+          w12 += winGame;
+          if (w12 >= 4) {
+            this.endGame(sessionId);
+            return;
+          }
+        } else if (way == 'rightUp' || way == 'leftDown') {
+          w2 += winGame;
+          if (w2 >= 4) {
+            this.endGame(sessionId);
+            return;
+          }
+        } else if (way == 'left' || way == 'right') {
+          w3 += winGame;
+          if (w3 >= 4) {
+            this.endGame(sessionId);
+            return;
+          }
+        } else {
+          w4 += winGame;
+          if (w4 >= 4) {
+            this.endGame(sessionId);
+            return;
+          }
+        }
       }
     }
+    console.log(w12, w2, w3, w4);
+  }
+
+  endGame(sessionId: string) {
+    this.state.winner = sessionId;
+    setTimeout(() => {
+      console.log('dissconnect ROOM!');
+      this.disconnect();
+    }, 3000);
   }
 
   checkOnWayDeQuy(
@@ -124,32 +173,24 @@ export class RoomService extends Room<RoomState> {
     array: Possion[],
     sessionId: string,
     count: number,
-  ): boolean {
-    console.log('Count', count);
+  ): number {
+    const xy = x + '' + y;
 
-    if (count == 4) return true;
-    else {
-      const xy = x + '' + y;
-      for (let index = 0; index < array.length; index++) {
-        const element = array[index];
-        if (element.xy == xy) {
-          if (element.sessionId == sessionId) {
-            count++;
-            const nextCheck = this.getNeighborByWay(x, y, way);
-            return this.checkOnWayDeQuy(
-              nextCheck.x,
-              nextCheck.y,
-              way,
-              array,
-              sessionId,
-              count,
-            );
-          }
-          break;
-        }
+    for (let index = 0; index < array.length; index++) {
+      const element = array[index];
+      if (element.xy == xy) {
+        const nextCheck = this.getNeighborByWay(x, y, way);
+        return this.checkOnWayDeQuy(
+          nextCheck.x,
+          nextCheck.y,
+          way,
+          array,
+          sessionId,
+          count + 1,
+        );
       }
-      return false;
     }
+    return count;
   }
 
   getNeighborByWay(x: number, y: number, way: string) {
